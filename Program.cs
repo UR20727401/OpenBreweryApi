@@ -1,0 +1,77 @@
+using System;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi.Models;
+using OpenBreweryApi.Helpers;
+using OpenBreweryApi.Interfaces;
+using OpenBreweryApi.Middleware;
+using OpenBreweryApi.Security;
+using OpenBreweryApi.Services;
+using OpenBreweryApi.Models.Settings;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Bind OpenBrewery settings
+builder.Services.Configure<OpenBrewerySettings>(builder.Configuration.GetSection("OpenBrewery"));
+
+ // Core services
+builder.Services.AddControllers()
+    .AddJsonOptions(o =>
+        o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<IBreweryService, BreweryService>();
+
+// Register AsyncLockProvider for concurrency control
+builder.Services.AddSingleton<AsyncLockProvider>();
+
+// Authentication (simple API Key example) and Authorization
+builder.Services.AddAuthentication("ApiKey")
+    .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>("ApiKey", options => { });
+
+builder.Services.AddAuthorization();    
+
+// Swagger / OpenAPI
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(static options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "OpenBreweryApi", Version = "v1" });
+
+    options.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.ApiKey,
+        In = ParameterLocation.Header,
+        Name = "X-API-KEY",
+        Description = "API key required. Add header: X-API-KEY: {key}"
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "ApiKey" }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
+
+var app = builder.Build();
+
+// Middleware pipeline
+app.UseMiddleware<ErrorHandlingMiddleware>();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseSwagger();
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "OpenBreweryApi v1");
+    options.RoutePrefix = "swagger";
+});
+
+app.MapControllers();
+
+app.Run();
