@@ -22,17 +22,20 @@ namespace OpenBreweryApi.Services
         private readonly IMemoryCache _cache;
         private readonly AsyncLockProvider _lockProvider;
         private readonly OpenBrewerySettings _settings;
+        private readonly IOpenBreweryClient _openBreweryClient;
 
         public BreweryService(
             IHttpClientFactory factory,
             IMemoryCache cache,
             AsyncLockProvider lockProvider,
-            IOptions<OpenBrewerySettings> settings)
+            IOptions<OpenBrewerySettings> settings,
+            IOpenBreweryClient openBreweryClient)
         {
             _factory = factory;
             _cache = cache;
             _lockProvider = lockProvider;
             _settings = settings.Value;
+            _openBreweryClient = openBreweryClient;
         }
 
         // Backwards-compatible signature
@@ -83,7 +86,7 @@ namespace OpenBreweryApi.Services
 
                 var options = new JsonSerializerOptions
                 {
-                    PropertyNameCaseInsensitive = true
+                        PropertyNameCaseInsensitive = true
                 };
 
                 var upstream = JsonSerializer.Deserialize<List<Response>>(json, options)

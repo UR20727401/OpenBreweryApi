@@ -1,6 +1,4 @@
-using System;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
+
 using Microsoft.OpenApi.Models;
 using OpenBreweryApi.Helpers;
 using OpenBreweryApi.Interfaces;
@@ -21,9 +19,11 @@ builder.Services.AddControllers()
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IBreweryService, BreweryService>();
+builder.Services.AddScoped<IOpenBreweryClient, OpenBreweryClient>(); 
 
 // Register AsyncLockProvider for concurrency control
 builder.Services.AddSingleton<AsyncLockProvider>();
+builder.Services.AddSingleton<OpenBreweryApi.Security.IApiKeyProvider, OpenBreweryApi.Security.EnvApiKeyProvider>();
 
 // Authentication (simple API Key example) and Authorization
 builder.Services.AddAuthentication("ApiKey")

@@ -4,7 +4,6 @@ using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -13,18 +12,17 @@ namespace OpenBreweryApi.Security;
 public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     private const string ApiKeyHeaderName = "X-API-KEY";
-    private readonly IConfiguration _configuration;
+    private readonly IApiKeyProvider _apiKeyProvider;
 
     public ApiKeyAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
         UrlEncoder encoder,
         TimeProvider timeProvider,
-        IConfiguration configuration)
+        IApiKeyProvider apiKeyProvider)
         : base(options, logger, encoder)
     {
-        _configuration = configuration;
-        // Set TimeProvider on Options as recommended by the obsolete warning
+        _apiKeyProvider = apiKeyProvider;
         if (Options != null)
         {
             Options.TimeProvider = timeProvider;
@@ -34,15 +32,11 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.Headers.TryGetValue(ApiKeyHeaderName, out var potentialKey))
-        {
             return Task.FromResult(AuthenticateResult.NoResult());
-        }
 
-        var configuredKey = _configuration["ApiKey"];
-        if (string.IsNullOrEmpty(configuredKey) || !configuredKey.Equals(potentialKey.ToString(), StringComparison.Ordinal))
-        {
+        var configuredKey = _apiKeyProvider.GetApiKey();
+        if (string.IsNullOrEmpty(configuredKey) || !configuredKey.Equals(potentialKey.ToString(), System.StringComparison.Ordinal))
             return Task.FromResult(AuthenticateResult.Fail("Invalid API Key"));
-        }
 
         var claims = new[] { new Claim(ClaimTypes.Name, "ApiKeyUser") };
         var identity = new ClaimsIdentity(claims, Scheme.Name);
