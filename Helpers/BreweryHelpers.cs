@@ -15,30 +15,60 @@ namespace OpenBreweryApi.Helpers
 
             if (!string.IsNullOrWhiteSpace(request?.Search))
             {
-                var search = request.Search;
+                var search = request.Search.Trim();
+
                 query = query.Where(x =>
-                    (x.Name ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                    (x.City ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase));
+                    Contains(x.Name, search) ||
+                    Contains(x.BreweryType, search) ||
+                    Contains(x.Address1, search) ||
+                    Contains(x.Address2, search) ||
+                    Contains(x.Address3, search) ||
+                    Contains(x.City, search) ||
+                    Contains(x.StateProvince, search) ||
+                    Contains(x.PostalCode, search) ||
+                    Contains(x.Country, search) ||
+                    Contains(x.Phone, search) ||
+                    Contains(x.State, search) ||
+                    Contains(x.Street, search));
             }
 
             bool desc = request?.SortDir == SortDir.desc;
-            var sortType = request?.SortType ?? SortType.name;
+            var sortType = request?.SortType;
 
-            if (sortType == SortType.by_dist && request?.Lat.HasValue == true && request?.Lon.HasValue == true)
+            if (sortType == SortType.by_dist &&
+                request?.Lat.HasValue == true &&
+                request?.Lon.HasValue == true)
             {
                 double reqLat = request.Lat.Value;
                 double reqLon = request.Lon.Value;
 
                 query = desc
-                    ? query.OrderByDescending(b => ComputeDistanceKm(b.Latitude, b.Longitude, reqLat, reqLon) ?? double.MaxValue)
-                    : query.OrderBy(b => ComputeDistanceKm(b.Latitude, b.Longitude, reqLat, reqLon) ?? double.MaxValue);
+                    ? query.OrderByDescending(
+                        b => ComputeDistanceKm(
+                            b.Latitude,
+                            b.Longitude,
+                            reqLat,
+                            reqLon) ?? double.MaxValue)
+                    : query.OrderBy(
+                        b => ComputeDistanceKm(
+                            b.Latitude,
+                            b.Longitude,
+                            reqLat,
+                            reqLon) ?? double.MaxValue);
             }
-            else
+            else if (sortType.HasValue)
             {
-                query = sortType switch
+                query = sortType.Value switch
                 {
-                    SortType.city => desc ? query.OrderByDescending(x => x.City) : query.OrderBy(x => x.City),
-                    _ => desc ? query.OrderByDescending(x => x.Name) : query.OrderBy(x => x.Name),
+                    SortType.city => desc
+                        ? query.OrderByDescending(x => x.City)
+                        : query.OrderBy(x => x.City),
+
+                    SortType.name => desc
+                        ? query.OrderByDescending(x => x.Name)
+                        : query.OrderBy(x => x.Name),
+
+                    _ => query
                 };
             }
 
@@ -74,5 +104,14 @@ namespace OpenBreweryApi.Helpers
         }
 
         private static double ToRadians(double degrees) => degrees * (Math.PI / 180.0);
+
+        private static bool Contains(
+            string? value,
+            string search)
+        {
+            return value?.Contains(
+                search,
+                StringComparison.OrdinalIgnoreCase) == true;
+        }
     }
 }

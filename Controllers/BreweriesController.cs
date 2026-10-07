@@ -30,7 +30,8 @@ public class BreweriesController : ControllerBase
     /// Unified endpoint supporting two query formats:
     /// - Sort style: ?sort=name,city:asc
     /// - Distance style: ?by_dist=lat,lon
-    /// Pagination: ?page=1&perPage=50 (defaults: page=1, perPage=50, max perPage=200)
+    /// Pagination: ?page=1&per_page=50
+    /// (defaults: page=1, per_page=50, maximum per_page=200)
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> Get(
@@ -38,20 +39,25 @@ public class BreweriesController : ControllerBase
         [FromQuery(Name = "sort")] string? sort,
         [FromQuery(Name = "by_dist")] string? byDist,
         [FromQuery(Name = "page")] int? page,
-        [FromQuery(Name = "perPage")] int? perPage)
+        [FromQuery(Name = "per_page")] int? perPage)
     {
-        // Validate paging params early
         if (page.HasValue && page.Value < 1)
+        {
             return BadRequest("Query parameter 'page' must be >= 1.");
+        }
 
         if (perPage.HasValue && (perPage.Value < 1 || perPage.Value > 200))
-            return BadRequest("Query parameter 'perPage' must be between 1 and 200 (inclusive).");
+        {
+            return BadRequest(
+                "Query parameter 'per_page' must be between 1 and 200 (inclusive).");
+        }
 
-        // Build request
         var request = new BrewerySearchRequest
         {
             Search = search,
-            SortType = SortHelpers.ParseSortField(sort),
+            SortType = string.IsNullOrWhiteSpace(sort)
+                ? null
+                : SortHelpers.ParseSortField(sort),
             SortDir = SortHelpers.ParseSortDir(sort),
             Page = page ?? 1,
             PerPage = perPage ?? 50
@@ -63,13 +69,24 @@ public class BreweriesController : ControllerBase
                 "The requested page is too large for the selected page size.");
         }
 
-        // If by_dist query param provided use it (overrides sort field)
         if (!string.IsNullOrWhiteSpace(byDist))
         {
-            var parts = byDist.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var parts = byDist.Split(
+                ',',
+                StringSplitOptions.RemoveEmptyEntries |
+                StringSplitOptions.TrimEntries);
+
             if (parts.Length == 2 &&
-                double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var lat) &&
-                double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var lon) &&
+                double.TryParse(
+                    parts[0],
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out var lat) &&
+                double.TryParse(
+                    parts[1],
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out var lon) &&
                 lat is >= -90 and <= 90 &&
                 lon is >= -180 and <= 180)
             {
@@ -86,10 +103,17 @@ public class BreweriesController : ControllerBase
         }
 
         _logger.LogInformation(
-            "Handling GET /breweries request (search='{Search}', sort='{Sort}', by_dist='{ByDist}', page={Page}, perPage={PerPage})",
-            request.Search, sort, byDist, request.Page, request.PerPage);
+            "Handling GET /breweries request " +
+            "(query='{Query}', sort='{Sort}', by_dist='{ByDist}', " +
+            "page={Page}, per_page={PerPage})",
+            request.Search,
+            sort,
+            byDist,
+            request.Page,
+            request.PerPage);
 
         var result = await _service.GetBreweriesAsync(request);
+
         var dto = result.Select(x => new BreweryDto
         {
             Name = x.Name,

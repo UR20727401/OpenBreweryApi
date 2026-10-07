@@ -24,7 +24,10 @@ public sealed class BreweriesControllerTests
             perPage: null);
 
         var response = Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Contains("page", response.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "page",
+            response.Value?.ToString(),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -40,7 +43,11 @@ public sealed class BreweriesControllerTests
             perPage: 201);
 
         var response = Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Contains("perPage", response.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+
+        Assert.Contains(
+            "per_page",
+            response.Value?.ToString(),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -56,11 +63,14 @@ public sealed class BreweriesControllerTests
             perPage: null);
 
         var response = Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Contains("by_dist", response.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "by_dist",
+            response.Value?.ToString(),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task Get_WithValidRequest_ReturnsOk()
+    public async Task Get_WithValidSearchRequest_ReturnsOk()
     {
         var controller = CreateController();
 
@@ -95,14 +105,6 @@ public sealed class BreweriesControllerTests
 
     private sealed class FakeBreweryService : IBreweryService
     {
-        public Task<IEnumerable<BreweryModel>> GetBreweriesAsync(
-            string? search,
-            string? sortBy)
-        {
-            return Task.FromResult<IEnumerable<BreweryModel>>(
-                CreateBreweries());
-        }
-
         public Task<IEnumerable<BreweryModel>> GetBreweriesAsync(
             BrewerySearchRequest request)
         {

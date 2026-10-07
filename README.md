@@ -2,7 +2,6 @@
 
 A .NET 8 Web API for retrieving brewery data from the Open Brewery DB service. The application includes API-key authentication, in-memory caching, concurrency control, centralized exception handling, Swagger/OpenAPI documentation, and configurable Open Brewery settings.
 
-
 The application prints the HTTP and HTTPS URLs in the console. Open the displayed Swagger URL, usually one of the following:
 
 - `https://localhost:7xxx/swagger`
@@ -54,11 +53,57 @@ Protected requests must include the API key in the `X-API-KEY` header:
 Unauthenticated requests to protected endpoints return `401 Unauthorized`. Requests with an invalid key return an authentication failure according to the configured authentication handler.
 
 
+## API endpoints
+
+The API exposes one brewery endpoint:
+
+GET http://localhost:5000/api/v1/breweries
+
+Use query parameters on this endpoint:
+
+GET http://localhost:5000/api/v1/breweries?search=portland
+GET http://localhost:5000/api/v1/breweries?page=1&per_page=50
+GET http://localhost:5000/api/v1/breweries?sort=name
+GET http://localhost:5000/api/v1/breweries?sort=name:desc
+GET http://localhost:5000/api/v1/breweries?sort=city:desc
+GET http://localhost:5000/api/v1/breweries?by_dist=32.88313237,-117.1649842
+
+The public API uses `search`, while the upstream Open Brewery DB search endpoint uses `query` internally. The public endpoint does not expose a separate `/search` route.
+
+Use `per_page`, not `perPage`, for pagination. Requests must include the `X-API-KEY` header.
+
 ## Caching
 
 The application registers ASP.NET Core's in-memory cache through 
 `AddMemoryCache()`. 
 `BreweryService` uses this cache to retain suitable brewery responses and avoid unnecessary calls to the external API.
+
+### Caching behavior
+
+`BreweryService` caches each successful upstream page in `IMemoryCache`. A per-key asynchronous lock prevents concurrent cache misses from issuing duplicate upstream requests.
+
+Cache keys include every value that can change the response:
+
+{CacheKeyPrefix}|search:{search}|bydist:{latitude,longitude}|sort:{sort}|page:{page}|per_page:{per_page}
+
+
+For example:
+
+brewery_data|search:|bydist:|sort:name|page:2|per_page:50
+brewery_data|search:portland|bydist:|sort:|page:1|per_page:50
+brewery_data|search:|bydist:32.88313237,-117.1649842|sort:by_dist|page:1|per_page:50
+
+The cache flow is:
+
+1. Build a request-specific cache key.
+2. Return the cached page immediately when available.
+3. On a miss, acquire the lock for that key.
+4. Check the cache again after acquiring the lock.
+5. Call the upstream API only if the value is still missing.
+6. Cache the mapped result with the configured `CacheMinutes` expiration.
+7. Return the cached page.
+
+Different searches, pages, page sizes, sort values, and distance coordinates use separate cache entries. Search results do not reuse normal brewery results, and page 2 does not reuse page 1.
 
 ### Cache key composition
 
@@ -120,7 +165,7 @@ When adding or reviewing logs:
 
 `ErrorHandlingMiddleware` is registered near the beginning of the request pipeline. It catches unhandled exceptions from downstream middleware and controllers, logs the failure, and returns a controlled error response.
 
-. Unexpected failures should be allowed to reach the centralized middleware.
+Unexpected failures should be allowed to reach the centralized middleware.
 
 ## Request pipeline
 
@@ -145,8 +190,7 @@ dotnet run
 
 ## Testing
 
-covered test cases around negative scanrios, api key, semaphores
-
+Covered test cases around negative scenarios, API key, and semaphores.
 
 ## Troubleshooting
 

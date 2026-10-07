@@ -13,6 +13,9 @@ namespace OpenBreweryApi.Services
 {
     public class OpenBreweryClient : IOpenBreweryClient
     {
+        private const int PageSize = 200;
+        private const int MaximumPages = 1000;
+
         private readonly IHttpClientFactory _factory;
         private readonly OpenBrewerySettings _settings;
         private readonly JsonSerializerOptions _jsonOptions = new()
@@ -31,58 +34,102 @@ namespace OpenBreweryApi.Services
 
         public async Task<List<Response>> GetBreweriesAsync(
             string? byDist = null,
+            string? search = null,
+            string? sort = null,
+            int? page = null,
+            int? perPage = null,
             CancellationToken cancellationToken = default)
         {
-            try
+            var client = _factory.CreateClient();
+            var baseUrl = _settings.BaseUrl?.TrimEnd('/')
+                ?? throw new InvalidOperationException(
+                    "OpenBrewery BaseUrl is not configured.");
+
+            var requestPage = page ?? 1;
+            var requestPageSize = perPage ?? PageSize;
+
+            var requestUrl = BuildPageUrl(
+                baseUrl,
+                byDist,
+                search,
+                sort,
+                requestPage,
+                requestPageSize);
+
+            return await GetPageAsync(
+                client,
+                requestUrl,
+                cancellationToken);
+        }
+
+        private async Task<List<Response>> GetPageAsync(
+            HttpClient client,
+            string pageUrl,
+            CancellationToken cancellationToken)
+        {
+            using var response = await client.GetAsync(
+                pageUrl,
+                cancellationToken).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
             {
-                var client = _factory.CreateClient();
-                var url = _settings.BaseUrl?.TrimEnd('/')
-                    ?? throw new InvalidOperationException(
-                        "OpenBrewery BaseUrl is not configured.");
+                throw new UpstreamServiceException(
+                    $"The brewery service returned HTTP {(int)response.StatusCode}.");
+            }
 
-                if (!string.IsNullOrWhiteSpace(byDist))
-                {
-                    var encoded = Uri.EscapeDataString(byDist);
-                    url = $"{url}?by_dist={encoded}";
-                }
-
-                using var response = await client.GetAsync(
-                    url,
+            await using var stream =
+                await response.Content.ReadAsStreamAsync(
                     cancellationToken).ConfigureAwait(false);
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    throw new UpstreamServiceException(
-                        $"The brewery service returned HTTP {(int)response.StatusCode}.");
-                }
-
-                await using var stream = await response.Content.ReadAsStreamAsync(
-                    cancellationToken).ConfigureAwait(false);
-
-                var items = await JsonSerializer.DeserializeAsync<List<Response>>(
+            var pageItems =
+                await JsonSerializer.DeserializeAsync<List<Response>>(
                     stream,
                     _jsonOptions,
                     cancellationToken).ConfigureAwait(false);
 
-                return items ?? throw new UpstreamServiceException(
+            if (pageItems is null)
+            {
+                throw new UpstreamServiceException(
                     "The brewery service returned an empty response.");
             }
-            catch (UpstreamServiceException)
+
+            return pageItems;
+        }
+
+        private static string BuildPageUrl(
+            string baseUrl,
+            string? byDist,
+            string? search,
+            string? sort,
+            int page,
+            int perPage)
+        {
+            var endpoint = string.IsNullOrWhiteSpace(search)
+                ? baseUrl
+                : $"{baseUrl}/search";
+
+            var query = new List<string>
             {
-                throw;
-            }
-            catch (HttpRequestException exception)
+                $"page={page}",
+                $"per_page={perPage}"
+            };
+
+            if (!string.IsNullOrWhiteSpace(search))
             {
-                throw new UpstreamServiceException(
-                    "The brewery service could not be reached.",
-                    exception);
+                query.Add($"query={Uri.EscapeDataString(search.Trim())}");
             }
-            catch (JsonException exception)
+
+            if (!string.IsNullOrWhiteSpace(sort))
             {
-                throw new UpstreamServiceException(
-                    "The brewery service returned invalid JSON.",
-                    exception);
+                query.Add($"sort={Uri.EscapeDataString(sort)}");
             }
+
+            if (!string.IsNullOrWhiteSpace(byDist))
+            {
+                query.Add($"by_dist={Uri.EscapeDataString(byDist)}");
+            }
+
+            return $"{endpoint}?{string.Join("&", query)}";
         }
     }
 }
