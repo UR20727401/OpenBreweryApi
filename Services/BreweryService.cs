@@ -37,7 +37,7 @@ namespace OpenBreweryApi.Services
             ArgumentNullException.ThrowIfNull(request);
 
             var search = request.Search?.Trim();
-            var sort = request.SortType?.ToString();
+            var sort = request.Sort?.Trim();
             string? byDist = null;
 
             if (request.SortType == SortType.by_dist &&

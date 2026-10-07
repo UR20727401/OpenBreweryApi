@@ -9,6 +9,9 @@ namespace OpenBreweryApi.Models.Requests
         /// </summary>
         public string? Search { get; set; }
 
+        // Preserves the complete public value, for example "name:desc".
+        public string? Sort { get; set; }
+
         /// <summary>
         /// Optional sort field. When null, the original upstream order is preserved.
         /// </summary>

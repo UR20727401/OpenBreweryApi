@@ -55,6 +55,9 @@ public class BreweriesController : ControllerBase
         var request = new BrewerySearchRequest
         {
             Search = search,
+            Sort = string.IsNullOrWhiteSpace(sort)
+                ? null
+                : sort.Trim(),
             SortType = string.IsNullOrWhiteSpace(sort)
                 ? null
                 : SortHelpers.ParseSortField(sort),
