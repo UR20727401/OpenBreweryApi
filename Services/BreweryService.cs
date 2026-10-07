@@ -56,9 +56,7 @@ namespace OpenBreweryApi.Services
                 return BreweryHelpers.ApplyFiltersAndSorting(cached, request);
             }
 
-            var sem = _lockProvider.GetLock(cacheKey);
-            await sem.WaitAsync();
-            try
+            using (await _lockProvider.AcquireAsync(cacheKey))
             {
                 // Double-check after acquiring lock
                 if (_cache.TryGetValue(cacheKey, out cached) && cached is not null)
@@ -99,10 +97,6 @@ namespace OpenBreweryApi.Services
                     });
 
                 cached = list;
-            }
-            finally
-            {
-                sem.Release();
             }
 
             return BreweryHelpers.ApplyFiltersAndSorting(cached!, request);

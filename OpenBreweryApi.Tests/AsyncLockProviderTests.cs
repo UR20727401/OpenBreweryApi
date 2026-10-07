@@ -6,53 +6,25 @@ namespace OpenBreweryApi.Tests;
 public sealed class AsyncLockProviderTests
 {
     [Fact]
-    public void GetLock_WithSameKey_ReturnsSameLock()
+    public async Task AcquireAsync_WithSameKey_AllowsOnlyOneConcurrentOperation()
     {
         var provider = new AsyncLockProvider();
-
-        var firstLock = provider.GetLock("breweries");
-        var secondLock = provider.GetLock("breweries");
-
-        Assert.Same(firstLock, secondLock);
-    }
-
-    [Fact]
-    public void GetLock_WithDifferentKeys_ReturnsDifferentLocks()
-    {
-        var provider = new AsyncLockProvider();
-
-        var firstLock = provider.GetLock("breweries");
-        var secondLock = provider.GetLock("breweries-distance");
-
-        Assert.NotSame(firstLock, secondLock);
-    }
-
-    [Fact]
-    public async Task GetLock_AllowsOnlyOneConcurrentOperation()
-    {
-        var provider = new AsyncLockProvider();
-        var semaphore = provider.GetLock("breweries");
         var activeOperations = 0;
         var maximumConcurrentOperations = 0;
 
         async Task ExecuteAsync()
         {
-            await semaphore.WaitAsync();
-
-            try
+            using (await provider.AcquireAsync("breweries"))
             {
-                activeOperations++;
-                maximumConcurrentOperations = Math.Max(
-                    maximumConcurrentOperations,
-                    activeOperations);
+                var active = Interlocked.Increment(ref activeOperations);
+
+                InterlockedMax(
+                    ref maximumConcurrentOperations,
+                    active);
 
                 await Task.Delay(50);
 
-                activeOperations--;
-            }
-            finally
-            {
-                semaphore.Release();
+                Interlocked.Decrement(ref activeOperations);
             }
         }
 
@@ -62,5 +34,70 @@ public sealed class AsyncLockProviderTests
             ExecuteAsync());
 
         Assert.Equal(1, maximumConcurrentOperations);
+    }
+
+    [Fact]
+    public async Task AcquireAsync_WithDifferentKeys_AllowsConcurrentOperations()
+    {
+        var provider = new AsyncLockProvider();
+        var firstEntered = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondEntered = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        async Task ExecuteAsync(
+            string key,
+            TaskCompletionSource<bool> entered)
+        {
+            using (await provider.AcquireAsync(key))
+            {
+                entered.SetResult(true);
+                await Task.Delay(50);
+            }
+        }
+
+        var first = ExecuteAsync("breweries", firstEntered);
+        var second = ExecuteAsync("breweries-distance", secondEntered);
+
+        await Task.WhenAll(
+            firstEntered.Task,
+            secondEntered.Task,
+            first,
+            second);
+    }
+
+    [Fact]
+    public async Task AcquireAsync_AllowsReacquiringKeyAfterLeaseIsDisposed()
+    {
+        var provider = new AsyncLockProvider();
+
+        using (await provider.AcquireAsync("breweries"))
+        {
+        }
+
+        using (await provider.AcquireAsync("breweries"))
+        {
+        }
+    }
+
+    private static void InterlockedMax(
+        ref int location,
+        int value)
+    {
+        int current;
+
+        do
+        {
+            current = Volatile.Read(ref location);
+
+            if (current >= value)
+            {
+                return;
+            }
+        }
+        while (Interlocked.CompareExchange(
+                   ref location,
+                   value,
+                   current) != current);
     }
 }
