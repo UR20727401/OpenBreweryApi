@@ -1,8 +1,5 @@
-using System;
 using System.Net;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
+using OpenBreweryApi.Services;
 
 namespace OpenBreweryApi.Middleware;
 
@@ -24,6 +21,20 @@ public class ErrorHandlingMiddleware
         try
         {
             await _next(context);
+        }
+        catch (UpstreamServiceException ex)
+        {
+            _logger.LogError(ex, "The upstream brewery service failed.");
+
+            if (!context.Response.HasStarted)
+            {
+                context.Response.StatusCode = StatusCodes.Status502BadGateway;
+
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    message = "The upstream brewery service is unavailable."
+                });
+            }
         }
         catch (Exception ex)
         {

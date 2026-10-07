@@ -69,22 +69,19 @@ public class BreweriesController : ControllerBase
             var parts = byDist.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (parts.Length == 2 &&
                 double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var lat) &&
-                double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var lon))
+                double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var lon) &&
+                lat is >= -90 and <= 90 &&
+                lon is >= -180 and <= 180)
             {
                 request.Lat = lat;
                 request.Lon = lon;
-                try
-                {
-                    request.SortType = Enum.Parse<SortType>("by_dist", true);
-                }
-                catch
-                {
-                    request.SortType = SortHelpers.ParseSortField("distance");
-                }
+                request.SortType = SortType.by_dist;
             }
             else
             {
-                return BadRequest("Invalid 'by_dist' value. Expected 'lat,lon' using invariant decimal separator (example: ?by_dist=32.88313237,-117.1649842).");
+                return BadRequest(
+                    "Invalid 'by_dist' value. Latitude must be between -90 and 90, " +
+                    "and longitude must be between -180 and 180.");
             }
         }
 

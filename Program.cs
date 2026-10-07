@@ -6,6 +6,7 @@ using OpenBreweryApi.Middleware;
 using OpenBreweryApi.Security;
 using OpenBreweryApi.Services;
 using OpenBreweryApi.Models.Settings;
+using Microsoft.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,7 +31,9 @@ builder.Services.AddSingleton<OpenBreweryApi.Security.IApiKeyProvider, OpenBrewe
 
 // Authentication (simple API Key example) and Authorization
 builder.Services.AddAuthentication("ApiKey")
-    .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>("ApiKey", options => { });
+    .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
+        "ApiKey",
+        options => { });
 
 builder.Services.AddAuthorization();    
 
