@@ -1,64 +1,68 @@
 using System;
 using OpenBreweryApi.Models.Requests;
 
-namespace OpenBreweryApi.Helpers
+namespace OpenBreweryApi.Helpers;
+
+public static class SortHelpers
 {
-    public static class SortHelpers
+    public static bool TryParse(
+        string? sort,
+        out SortType? sortType,
+        out SortDir sortDir)
     {
-        // Parse primary field from "sort" query. Examples:
-        // "name", "city:desc", "name,city:asc" -> returns corresponding SortType (defaults to by_name)
-        public static SortType ParseSortField(string? sort)
+        sortType = null;
+        sortDir = SortDir.asc;
+
+        if (string.IsNullOrWhiteSpace(sort))
         {
-            if (string.IsNullOrWhiteSpace(sort))
+            return true;
+        }
+
+        var tokens = sort.Split(
+            ',',
+            StringSplitOptions.RemoveEmptyEntries |
+            StringSplitOptions.TrimEntries);
+
+        if (tokens.Length == 0)
+        {
+            return false;
+        }
+
+        var primaryParts = tokens[0].Split(
+            ':',
+            StringSplitOptions.RemoveEmptyEntries |
+            StringSplitOptions.TrimEntries);
+
+        var field = primaryParts[0].ToLowerInvariant();
+
+        sortType = field switch
+        {
+            "name" or "by_name" => SortType.name,
+            "city" or "by_city" => SortType.city,
+            "distance" or "dist" or "by_dist" => SortType.by_dist,
+            _ => null
+        };
+
+        if (!sortType.HasValue)
+        {
+            return false;
+        }
+
+        if (primaryParts.Length > 1)
+        {
+            sortDir = primaryParts[1].ToLowerInvariant() switch
             {
-                return GetDefaultSortType();
-            }
-
-            // Use the first token before comma as primary field
-            var tokens = sort.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var first = tokens.Length > 0 ? tokens[0] : string.Empty;
-
-            // If first contains colon, strip direction
-            var field = first.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)[0]
-                             .Trim().ToLowerInvariant();
-
-            // Map common synonyms to enum names
-            return field switch
-            {
-                "name" or "by_name" => SortType.name,
-                "city" or "by_city" => SortType.city,
-                "distance" or "dist" or "by_dist" => SortType.by_dist,
-                _ => GetDefaultSortType()
+                "asc" => SortDir.asc,
+                "desc" => SortDir.desc,
+                _ => (SortDir)(-1)
             };
+
+            if ((int)sortDir == -1)
+            {
+                return false;
+            }
         }
 
-        // Determine sort direction by looking for any :asc/:desc token in the comma-separated list.
-        // Defaults to asc.
-        public static SortDir ParseSortDir(string? sort)
-        {
-            if (string.IsNullOrWhiteSpace(sort))
-            {
-                return GetDefaultSortDir();
-            }
-
-            var tokens = sort.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-            foreach (var token in tokens)
-            {
-                var parts = token.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                if (parts.Length == 2)
-                {
-                    var dir = parts[1].Trim().ToLowerInvariant();
-                    if (dir == "desc") return SortDir.desc;
-                    if (dir == "asc") return SortDir.asc;
-                }
-            }
-
-            // If no explicit direction found, default to asc
-            return GetDefaultSortDir();
-        }
-
-        public static SortType GetDefaultSortType() => SortType.name;
-        public static SortDir GetDefaultSortDir() => SortDir.asc;
+        return true;
     }
 }

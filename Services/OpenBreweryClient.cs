@@ -81,19 +81,27 @@ namespace OpenBreweryApi.Services
                 await response.Content.ReadAsStreamAsync(
                     cancellationToken).ConfigureAwait(false);
 
-            var pageItems =
-                await JsonSerializer.DeserializeAsync<List<Response>>(
-                    stream,
-                    _jsonOptions,
-                    cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var pageItems =
+                    await JsonSerializer.DeserializeAsync<List<Response>>(
+                        stream,
+                        _jsonOptions,
+                        cancellationToken).ConfigureAwait(false);
 
-            if (pageItems is null)
+                if (pageItems is null)
+                {
+                    throw new UpstreamServiceException(
+                        "The brewery service returned an empty response.");
+                }
+
+                return pageItems;
+            }
+            catch (JsonException)
             {
                 throw new UpstreamServiceException(
-                    "The brewery service returned an empty response.");
+                    "The brewery service returned an invalid brewery response.");
             }
-
-            return pageItems;
         }
 
         private static string BuildPageUrl(
@@ -119,7 +127,8 @@ namespace OpenBreweryApi.Services
                 query.Add($"query={Uri.EscapeDataString(search.Trim())}");
             }
 
-            if (!string.IsNullOrWhiteSpace(sort))
+            if (!string.IsNullOrWhiteSpace(sort) &&
+                string.IsNullOrWhiteSpace(byDist))
             {
                 query.Add($"sort={Uri.EscapeDataString(sort)}");
             }

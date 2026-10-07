@@ -52,16 +52,24 @@ public class BreweriesController : ControllerBase
                 "Query parameter 'per_page' must be between 1 and 200 (inclusive).");
         }
 
+        if (!SortHelpers.TryParse(
+                sort,
+                out var sortType,
+                out var sortDir))
+        {
+            return BadRequest(
+                "Invalid sort value. Supported fields are name, city, and by_dist. " +
+                "The direction must be asc or desc.");
+        }
+
         var request = new BrewerySearchRequest
         {
             Search = search,
             Sort = string.IsNullOrWhiteSpace(sort)
                 ? null
                 : sort.Trim(),
-            SortType = string.IsNullOrWhiteSpace(sort)
-                ? null
-                : SortHelpers.ParseSortField(sort),
-            SortDir = SortHelpers.ParseSortDir(sort),
+            SortType = sortType,
+            SortDir = sortDir,
             Page = page ?? 1,
             PerPage = perPage ?? 50
         };

@@ -68,15 +68,28 @@ var app = builder.Build();
 // Middleware pipeline
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.UseSwagger();
-app.UseSwaggerUI(options =>
+if (app.Environment.IsDevelopment())
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "OpenBreweryApi v1");
-    options.RoutePrefix = "swagger";
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint(
+            "/swagger/v1/swagger.json",
+            "OpenBreweryApi v1");
+
+        options.RoutePrefix = "swagger";
+    });
+}
 
 app.MapControllers();
 
