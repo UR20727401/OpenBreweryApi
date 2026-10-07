@@ -37,10 +37,7 @@ namespace OpenBreweryApi.Services
             ArgumentNullException.ThrowIfNull(request);
 
             var search = request.Search?.Trim();
-            var sort = request.SortType.HasValue &&
-                       request.SortType.Value != SortType.by_dist
-                ? $"{request.SortType.Value}:{request.SortDir}"
-                : null;
+            var sort = BuildSortValue(request);
             string? byDist = null;
 
             if (request.SortType == SortType.by_dist &&
@@ -64,7 +61,7 @@ namespace OpenBreweryApi.Services
                     out List<BreweryModel>? cached) &&
                 cached is not null)
             {
-                return cached;
+                return CloneBreweryList(cached);
             }
 
             using (await _lockProvider.AcquireAsync(cacheKey))
@@ -74,7 +71,7 @@ namespace OpenBreweryApi.Services
                         out cached) &&
                     cached is not null)
                 {
-                    return cached;
+                    return CloneBreweryList(cached);
                 }
 
                 var upstream = await _openBreweryClient.GetBreweriesAsync(
@@ -85,10 +82,11 @@ namespace OpenBreweryApi.Services
                     perPage: request.PerPage);
 
                 var list = MapBreweries(upstream);
+                var cachedList = CloneBreweryList(list);
 
                 _cache.Set(
                     cacheKey,
-                    list,
+                    cachedList,
                     new MemoryCacheEntryOptions
                     {
                         AbsoluteExpirationRelativeToNow =
@@ -96,8 +94,44 @@ namespace OpenBreweryApi.Services
                         Size = 1
                     });
 
-                return list;
+                return CloneBreweryList(cachedList);
             }
+        }
+
+        private static string? BuildSortValue(BrewerySearchRequest request)
+        {
+            if (request.SortType is null)
+            {
+                return null;
+            }
+
+            var sortValue = request.SortType.Value.ToString();
+            return request.SortDir == SortDir.desc
+                ? $"{sortValue}:desc"
+                : sortValue;
+        }
+
+        private static List<BreweryModel> CloneBreweryList(IEnumerable<BreweryModel> breweries)
+        {
+            return breweries.Select(b => new BreweryModel
+            {
+                Id = b.Id,
+                Name = b.Name,
+                BreweryType = b.BreweryType,
+                Address1 = b.Address1,
+                Address2 = b.Address2,
+                Address3 = b.Address3,
+                City = b.City,
+                StateProvince = b.StateProvince,
+                PostalCode = b.PostalCode,
+                Country = b.Country,
+                Longitude = b.Longitude,
+                Latitude = b.Latitude,
+                Phone = b.Phone,
+                WebsiteUrl = b.WebsiteUrl,
+                State = b.State,
+                Street = b.Street
+            }).ToList();
         }
 
         private string BuildCacheKey(
@@ -142,3 +176,4 @@ namespace OpenBreweryApi.Services
         }
     }
 }
+
