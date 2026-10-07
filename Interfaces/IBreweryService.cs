@@ -7,9 +7,6 @@ namespace OpenBreweryApi.Interfaces
 {
     public interface IBreweryService
     {
-        Task<IEnumerable<BreweryModel>> GetBreweriesAsync(string? search, string? sortBy);
-
-        // New request-driven method
         Task<IEnumerable<BreweryModel>> GetBreweriesAsync(BrewerySearchRequest request);
     }
 }

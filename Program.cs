@@ -1,4 +1,4 @@
-
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.OpenApi.Models;
 using OpenBreweryApi.Helpers;
 using OpenBreweryApi.Interfaces;
@@ -16,7 +16,10 @@ builder.Services.Configure<OpenBrewerySettings>(builder.Configuration.GetSection
 builder.Services.AddControllers()
     .AddJsonOptions(o =>
         o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
-builder.Services.AddMemoryCache();
+builder.Services.AddMemoryCache(options =>
+{
+    options.SizeLimit = 1000;
+});
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IBreweryService, BreweryService>();
 builder.Services.AddScoped<IOpenBreweryClient, OpenBreweryClient>(); 

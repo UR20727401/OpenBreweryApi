@@ -104,7 +104,7 @@ public sealed class BreweriesControllerTests
         }
 
         public Task<IEnumerable<BreweryModel>> GetBreweriesAsync(
-            OpenBreweryApi.Models.Requests.BrewerySearchRequest request)
+            BrewerySearchRequest request)
         {
             return Task.FromResult<IEnumerable<BreweryModel>>(
                 CreateBreweries());

@@ -57,6 +57,12 @@ public class BreweriesController : ControllerBase
             PerPage = perPage ?? 50
         };
 
+        if ((long)(request.Page - 1) * request.PerPage > int.MaxValue)
+        {
+            return BadRequest(
+                "The requested page is too large for the selected page size.");
+        }
+
         // If by_dist query param provided use it (overrides sort field)
         if (!string.IsNullOrWhiteSpace(byDist))
         {

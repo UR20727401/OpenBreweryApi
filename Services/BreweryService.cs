@@ -1,11 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
-using System.Net.Http;
-using System.Text.Json;
-using System.Threading.Tasks;
-using System.Threading;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using OpenBreweryApi.Helpers;
@@ -38,28 +31,20 @@ namespace OpenBreweryApi.Services
             _openBreweryClient = openBreweryClient;
         }
 
-        // Backwards-compatible signature
-        public Task<IEnumerable<BreweryModel>> GetBreweriesAsync(string? search, string? sortBy)
-        {
-            var request = new BrewerySearchRequest
-            {
-                Search = search,
-                SortType = sortBy is null ? SortType.name :
-                    (sortBy.Equals("distance", StringComparison.OrdinalIgnoreCase) ? SortType.by_dist : SortType.name)
-            };
-
-            return GetBreweriesAsync(request);
-        }
-
         public async Task<IEnumerable<BreweryModel>> GetBreweriesAsync(BrewerySearchRequest request)
         {
             var sortType = request?.SortType ?? SortType.name;
             string cacheKey = _settings.CacheKeyPrefix;
             string url = _settings.BaseUrl;
+            string? byDist = null;
 
             if (sortType == SortType.by_dist && request?.Lat.HasValue == true && request?.Lon.HasValue == true)
             {
-                string latlon = $"{request.Lat.Value.ToString(CultureInfo.InvariantCulture)},{request.Lon.Value.ToString(CultureInfo.InvariantCulture)}";
+                string latlon =
+                    $"{request.Lat.Value.ToString(CultureInfo.InvariantCulture)}," +
+                    $"{request.Lon.Value.ToString(CultureInfo.InvariantCulture)}";
+
+                byDist = latlon;
                 cacheKey = $"{_settings.CacheKeyPrefix}|bydist:{latlon}";
                 var encoded = Uri.EscapeDataString(latlon);
                 url = $"{_settings.BaseUrl}?by_dist={encoded}";
@@ -81,16 +66,7 @@ namespace OpenBreweryApi.Services
                     return BreweryHelpers.ApplyFiltersAndSorting(cached, request);
                 }
 
-                var client = _factory.CreateClient();
-                var json = await client.GetStringAsync(url);
-
-                var options = new JsonSerializerOptions
-                {
-                        PropertyNameCaseInsensitive = true
-                };
-
-                var upstream = JsonSerializer.Deserialize<List<Response>>(json, options)
-                             ?? new List<Response>();
+                var upstream = await _openBreweryClient.GetBreweriesAsync(byDist);
 
                 var list = upstream.Select(u => new BreweryModel
                 {
@@ -113,7 +89,15 @@ namespace OpenBreweryApi.Services
                 }).ToList();
 
                 // Populate cache
-                _cache.Set(cacheKey, list, TimeSpan.FromMinutes(_settings.CacheMinutes));
+                _cache.Set(
+                    cacheKey,
+                    list,
+                    new MemoryCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_settings.CacheMinutes),
+                        Size = 1
+                    });
+
                 cached = list;
             }
             finally

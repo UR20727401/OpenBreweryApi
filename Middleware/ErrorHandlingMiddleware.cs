@@ -5,12 +5,15 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
 namespace OpenBreweryApi.Middleware;
+
 public class ErrorHandlingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ErrorHandlingMiddleware> _logger;
 
-    public ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorHandlingMiddleware> logger)
+    public ErrorHandlingMiddleware(
+        RequestDelegate next,
+        ILogger<ErrorHandlingMiddleware> logger)
     {
         _next = next;
         _logger = logger;
@@ -24,13 +27,22 @@ public class ErrorHandlingMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unhandled exception processing request {Method} {Path}", context.Request.Method, context.Request.Path);
-            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-            await context.Response.WriteAsJsonAsync(new
+            _logger.LogError(
+                ex,
+                "Unhandled exception processing request {Method} {Path}",
+                context.Request.Method,
+                context.Request.Path);
+
+            if (!context.Response.HasStarted)
             {
-                message = "An error occurred",
-                detail = ex.Message
-            });
+                context.Response.StatusCode =
+                    (int)HttpStatusCode.InternalServerError;
+
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    message = "An unexpected error occurred."
+                });
+            }
         }
     }
 }
